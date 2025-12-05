@@ -141,11 +141,8 @@ class MongoDBConnection:
 
     @property
     def db(self):
-        try:
-            return self._db
-        except AttributeError:
-            pass
-        self._db = self.client[self.url.path.lstrip("/") or "ivre"]
+        if not hasattr(self, "_db"):
+            self._db = self.client[self.url.path.lstrip("/") or "ivre"]
         return self._db
 
 
