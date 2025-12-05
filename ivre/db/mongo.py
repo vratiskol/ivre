@@ -135,14 +135,14 @@ class MongoDBConnection:
     def close(self):
         try:
             # We do not use .client to avoid a useless connection.
-            self._client.close()  # pylint: disable=access-member-before-definition
+            self._client.close()
         except AttributeError:
             pass
 
     @property
     def db(self):
         try:
-            return self._db  # pylint: disable=access-member-before-definition
+            return self._db
         except AttributeError:
             pass
         self._db = self.client[self.url.path.lstrip("/") or "ivre"]
