@@ -1,5 +1,5 @@
 # This file is part of IVRE.
-# Copyright 2011 - 2025 Pierre LALET <pierre@droids-corp.org>
+# Copyright 2011 - 2026 Pierre LALET <pierre@droids-corp.org>
 #
 # IVRE is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -16,7 +16,16 @@
 
 name: Linting tests
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      fast:
+        description: "Fast mode (skip docs + mypy)"
+        type: boolean
+        required: false
+        default: false
 
 # https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs
 concurrency:
@@ -32,14 +41,13 @@ jobs:
         python-version: ['3.12']
 
     steps:
-
     - name: Git checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
     - name: Use Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -63,8 +71,15 @@ jobs:
     - run: isort --profile black --check-only ivre ./doc/conf.py ./setup.py ./bin/ivre ./tests/tests.py ./pkg/stubs/*.pyi
 
     - run: mv ivre_bak ivre
-    - run: MYPYPATH=./pkg/stubs/ mypy --follow-imports=skip --disallow-untyped-calls --disallow-untyped-decorators --disallow-untyped-defs --disallow-incomplete-defs --no-implicit-optional --warn-redundant-casts --warn-unused-ignores --warn-return-any ./ivre/{active,analyzer,data,parser,tags,tools,types}/*.py ./ivre/{__init__,activecli,agent,config,flow,geoiputils,graphroute,keys,nmapopt,plugins,utils,zgrabout}.py
-    - run: MYPYPATH=./pkg/stubs/ mypy --follow-imports=skip --disallow-untyped-calls --disallow-untyped-decorators --disallow-incomplete-defs --no-implicit-optional --warn-redundant-casts --warn-unused-ignores --warn-return-any ./ivre/db/mongo.py
+
+    - name: mypy (core)
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.fast != 'true' }}
+      run: MYPYPATH=./pkg/stubs/ mypy --follow-imports=skip --disallow-untyped-calls --disallow-untyped-decorators --disallow-untyped-defs --disallow-incomplete-defs --no-implicit-optional --warn-redundant-casts --warn-unused-ignores --warn-return-any ./ivre/{active,analyzer,data,parser,tags,tools,types}/*.py ./ivre/{__init__,activecli,agent,config,flow,geoiputils,graphroute,keys,nmapopt,plugins,utils,zgrabout}.py
+
+    - name: mypy (mongo)
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.fast != 'true' }}
+      run: MYPYPATH=./pkg/stubs/ mypy --follow-imports=skip --disallow-untyped-calls --disallow-untyped-decorators --disallow-untyped-defs --disallow-incomplete-defs --no-implicit-optional --warn-redundant-casts --warn-unused-ignores --warn-return-any ./ivre/db/mongo.py
+
     - run: mv ivre ivre_bak
 
     - run: flake8 --ignore=E402,E501,F401 ./doc/conf.py
@@ -73,10 +88,17 @@ jobs:
     - run: flake8 --ignore=E203,E501,E704,F821,W503 ./ivre_bak/
     - run: flake8 --ignore=E302,E305,E701,E704 ./pkg/stubs/*.pyi
 
-    - run: rstcheck -r ./doc/
-    - run: if ! find ./doc/ -type f -name '*.rst' -print0 | xargs -0 grep '[[:space:]]$'; then echo "trailing spaces OK"; else echo "!! trailing spaces !!"; false; fi
+    - name: rstcheck
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.fast != 'true' }}
+      run: rstcheck -r ./doc/
 
-    - run: sphinx-lint -e all -d line-too-long -d default-role ./doc/
+    - name: trailing spaces in doc
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.fast != 'true' }}
+      run: if ! find ./doc/ -type f -name '*.rst' -print0 | xargs -0 grep '[[:space:]]$'; then echo "trailing spaces OK"; else echo "!! trailing spaces !!"; false; fi
+
+    - name: sphinx-lint
+      if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.fast != 'true' }}
+      run: sphinx-lint -e all -d line-too-long -d default-role ./doc/
 
     - run: shellcheck .github/actions/install/install*.sh pkg/builddockers pkg/builddocs pkg/buildrpm pkg/runchecks
 
